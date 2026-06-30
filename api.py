@@ -107,15 +107,30 @@ def dashboard():
     }
 
 # ===========================================
-# Customer List Endpoint
+# Customer List Endpoint and Customer search Endpoint
 # ===========================================
 
 @app.get("/customers")
-def customers():
+def customers(page: int = 1, limit: int = 100):
 
-    return customer_features[
+    start = (page - 1) * limit
+    end = start + limit
+
+    return customer_features.iloc[start:end][
         "customer_unique_id"
     ].tolist()
+
+@app.get("/search-customers")
+def search_customers(query: str):
+
+    results = customer_features[
+        customer_features["customer_unique_id"]
+        .str.contains(query, case=False, na=False)
+    ]
+
+    return results[
+        "customer_unique_id"
+    ].head(20).tolist()
 
 # ===========================================
 # Customer Details Endpoint

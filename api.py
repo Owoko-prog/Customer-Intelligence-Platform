@@ -3,6 +3,8 @@ from pydantic import BaseModel
 import joblib
 import numpy as np
 import pandas as pd
+from prophet.serialize import model_from_json
+
 
 # ===========================================
 # Create FastAPI Application
@@ -19,6 +21,19 @@ app = FastAPI(
 # ===========================================
 
 model = joblib.load("models/retention_model.pkl")
+
+# ===========================================
+# Load Sales Forecast Model
+# ===========================================
+
+with open(
+    "models/sales_forecast_model.json",
+    "r"
+) as file:
+
+    sales_model = model_from_json(
+        file.read()
+    )
 
 # ===========================================
 # Load Customer Dataset
@@ -270,4 +285,68 @@ def model_info():
 
         "target": "retained"
 
+    }
+
+# ===========================================
+# Sales Forecast Endpoint
+# ===========================================
+
+@app.get("/sales-forecast")
+def sales_forecast():
+
+    # Generate next 30 days
+    future = sales_model.make_future_dataframe(
+        periods=30
+    )
+
+    forecast = sales_model.predict(future)
+
+    # Keep only future dates
+    forecast = forecast.tail(30)
+
+    forecast = forecast[
+        [
+            "ds",
+            "yhat",
+            "yhat_lower",
+            "yhat_upper"
+        ]
+    ]
+
+    forecast.columns = [
+        "date",
+        "predicted_sales",
+        "lower_bound",
+        "upper_bound"
+    ]
+
+    forecast["date"] = (
+        forecast["date"]
+        .astype(str)
+    )
+
+    return {
+        "forecast": forecast.to_dict(
+            orient="records"
+        ),
+
+        "total_predicted_sales": round(
+            forecast["predicted_sales"].sum(),
+            2
+        ),
+
+        "average_daily_sales": round(
+            forecast["predicted_sales"].mean(),
+            2
+        ),
+
+        "highest_day": round(
+            forecast["predicted_sales"].max(),
+            2
+        ),
+
+        "lowest_day": round(
+            forecast["predicted_sales"].min(),
+            2
+        )
     }
